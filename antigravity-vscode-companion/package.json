@@ -1,8 +1,8 @@
 {
     "name": "antigravity",
     "displayName": "Annotator for Antigravity",
-    "description": "Companion extension for Antigravity browser annotator. Enables seamless image and text injection from browser to IDE.",
-    "version": "1.0.5",
+    "description": "Companion extension for Antigravity browser annotator. Enables seamless image and text injection from browser directly into Antigravity.",
+    "version": "1.0.6",
     "icon": "icon.png",
     "publisher": "litwalle",
     "repository": {

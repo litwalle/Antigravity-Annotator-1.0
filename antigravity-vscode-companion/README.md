@@ -2,7 +2,7 @@
 
 **Antigravity Annotator** is a powerful productivity tool. It bridges the gap between your web browser and the **Antigravity** macOS desktop application, allowing you to capture, annotate, and instantly teleport screenshots and context directly into your Antigravity chat.
 
-This is the companion IDE extension. Because modern browsers restrict direct system-level execution, this extension runs a secure local background daemon inside your IDE (VS Code, Cursor, VSCodium, etc.) to handle the routing.
+This is the companion extension for Antigravity. Because modern browsers restrict direct system-level execution, this extension runs a secure local background daemon inside Antigravity to handle the routing.
 
 ---
 
@@ -15,11 +15,11 @@ To enable seamless image and text injection from your browser into the Antigravi
 2. Search for and install the **"Annotator - for Chrome"** extension.
 3. **Pin** the extension to your browser toolbar for quick access.
 
-### Step 2: Install this Companion Extension in your IDE
-1. Open your compatible IDE (e.g., VS Code, VSCodium, Cursor).
+### Step 2: Install this Companion Extension in Antigravity
+1. Open **Antigravity**.
 2. Go to the Extensions Marketplace (or Open VSX Registry) and search for **"Annotator for Antigravity"**.
 3. Click **Install**.
-4. *(Optional but recommended)* Reload your IDE window to ensure the background local daemon starts correctly.
+4. *(Optional but recommended)* Reload your Antigravity window to ensure the background local daemon starts correctly.
 
 ### Step 3: Start Annotating & Injecting!
 The complete communication bridge is now established.
