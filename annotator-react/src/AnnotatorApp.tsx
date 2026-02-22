@@ -2,7 +2,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import {
     Pencil, Square, MessageSquare, Type,
-    Undo2, X, Send, Loader2, Check, Eraser, Copy, Crop
+    Undo2, X, Send, Loader2, Check, Eraser, Copy, Crop,
+    PlugZap, Store, MonitorCheck, MousePointer2
 } from 'lucide-react'
 
 // ---- 类型定义 ----
@@ -38,6 +39,9 @@ const COLORS = [
     '#FF6700', // 荧光橙
 ]
 
+// 模块级变量：在同一页面生命周期内持久跟踪是否已发送过提示语（组件关闭重开不会重置）
+let _pagePromptSent = false
+
 // ---- 主组件 ----
 export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -59,7 +63,7 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
     const [commentState, setCommentState] = useState<CommentState>({ visible: false, x: 0, y: 0, mode: 'comment' })
     const [commentText, setCommentText] = useState('')
     const [sendStatus, setSendStatus] = useState<SendStatus>('idle')
-    const [hasSentPrompt, setHasSentPrompt] = useState(false)
+    // hasSentPrompt 已移至模块级变量 _pagePromptSent，不再使用 useState
     const [hasCopiedPrompt, setHasCopiedPrompt] = useState(false)
     const [showGuide, setShowGuide] = useState(false)
     const [activeColor, setActiveColor] = useState(COLORS[5]) // 默认荧光粉
@@ -488,9 +492,14 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
             // 1. 获取图片 Blob (支持裁剪)
             const blob = await getExportBlob();
 
-            // 2. 写入系统剪贴板 (Clipboard API 要求安全上下文，通常 content script 在原网页域执行，允许此操作)
+            // 2. 写入系统剪贴板：首次发送时同时带上文字，后续只带图片
+            //    这样 AppleScript 只需一次 Cmd+V 就能同时粘贴图片和提示语，无时序问题
+            const clipItems: Record<string, Blob> = { 'image/png': blob };
+            if (!_pagePromptSent) {
+                clipItems['text/plain'] = new Blob([TEXT_PROMPT], { type: 'text/plain' });
+            }
             await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': blob })
+                new ClipboardItem(clipItems)
             ]);
 
             // 3. 触发本地守护进程，执行自动粘贴。
@@ -500,7 +509,7 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
                 const resp = await new Promise<{ success?: boolean }>((resolve) => {
                     if (typeof chrome !== 'undefined' && chrome.runtime) {
                         chrome.runtime.sendMessage(
-                            { action: 'TRIGGER_LOCAL_DAEMON', url: window.location.href, includePrompt: !hasSentPrompt },
+                            { action: 'TRIGGER_LOCAL_DAEMON', url: window.location.href, includePrompt: !_pagePromptSent },
                             (response) => resolve(response || { success: false })
                         );
                     } else {
@@ -512,8 +521,8 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
                     throw new Error('Daemon returned error or not reachable');
                 }
 
-                if (!hasSentPrompt) {
-                    setHasSentPrompt(true);
+                if (!_pagePromptSent) {
+                    _pagePromptSent = true;
                     setHasCopiedPrompt(true); // 同时标记已复制过，避免后续 Copy 再带一遍
                 }
             } catch (err) {
@@ -544,7 +553,7 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
 
             // 手动复制时，如果不曾在此会话中复制过 Prompt，就带上。
             // 且不受是否已经 Add to Chat 的影响。
-            const shouldIncludeText = !hasCopiedPrompt && !hasSentPrompt;
+            const shouldIncludeText = !hasCopiedPrompt && !_pagePromptSent;
             const items: Record<string, Blob> = { 'image/png': blob };
 
             if (shouldIncludeText) {
@@ -660,8 +669,42 @@ export function AnnotatorApp({ imgDataUrl, onClose }: AnnotatorAppProps) {
     )
 }
 
-// ── 引导弹窗组件 ──────────────────────────────────────────────
+// ── Plugin guide modal ──────────────────────────────────────────
 function GuideModal({ onClose }: { onClose: () => void }) {
+    const steps: { Icon: React.ElementType; text: React.ReactNode }[] = [
+        {
+            Icon: Store,
+            text: (
+                <>
+                    Open Antigravity&apos;s{' '}
+                    <b style={{ color: '#fff' }}>Extensions Marketplace</b> and search for{' '}
+                    <b style={{ color: '#fff' }}>&quot;Annotate&quot;</b> or{' '}
+                    <b style={{ color: '#fff' }}>&quot;Annotate for Antigravity&quot;</b>.
+                    Install the plugin.
+                </>
+            ),
+        },
+        {
+            Icon: MonitorCheck,
+            text: (
+                <>
+                    Make sure <b style={{ color: '#fff' }}>Antigravity is running</b> — the plugin
+                    starts the helper service automatically when Antigravity is open.
+                </>
+            ),
+        },
+        {
+            Icon: MousePointer2,
+            text: (
+                <>
+                    Place your cursor in the{' '}
+                    <b style={{ color: '#fff' }}>Antigravity chat input</b>, then click{' '}
+                    <b style={{ color: '#fff' }}>&quot;Add to Antigravity&quot;</b> again.
+                </>
+            ),
+        },
+    ]
+
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 2147483647,
@@ -675,64 +718,104 @@ function GuideModal({ onClose }: { onClose: () => void }) {
                 @keyframes modalUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             `}} />
             <div style={{
-                width: 380, background: '#111', borderRadius: 16,
+                width: 420, background: '#111', borderRadius: 16,
                 padding: '28px 24px', position: 'relative',
                 border: '1px solid rgba(255,255,255,0.12)',
                 boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-                animation: 'modalUp 0.3s cubic-bezier(0,0,0.2,1) forwards'
+                animation: 'modalUp 0.3s cubic-bezier(0,0,0.2,1) forwards',
+                fontFamily: '-apple-system, "Inter", sans-serif',
             }}>
+                {/* Close button */}
                 <button onClick={onClose} style={{
                     position: 'absolute', right: 16, top: 16, background: 'none', border: 'none',
-                    cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4
+                    cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4, lineHeight: 0,
                 }}>
                     <X size={20} />
                 </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src="https://antigravity.ai/favicon.ico" style={{ width: 22, height: 22 }} onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                            <Send size={18} color="#fff" style={{ pointerEvents: 'none' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                            width: 38, height: 38, borderRadius: 10,
+                            background: 'rgba(255,255,255,0.1)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <PlugZap size={20} color="#fff" />
                         </div>
-                        <h3 style={{ margin: 0, fontSize: 18, color: '#fff', fontWeight: 600 }}>安装 Antigravity</h3>
-                    </div>
-
-                    <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-                        检测到您尚未在 Antigravity 中安装对应的插件，或者相关服务未启动。请按照以下步骤操作：
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>1</div>
-                            <div style={{ fontSize: 13, color: '#eee' }}>
-                                请先前往 <a href="https://antigravity.ai" target="_blank" style={{ color: '#aaa', textDecoration: 'underline' }}>Antigravity 官网</a> 或 VS Code 插件市场。
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>2</div>
-                            <div style={{ fontSize: 13, color: '#eee' }}>
-                                直接搜索关键词 <b>"Antigravity"</b> 进行下载安装。
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>3</div>
-                            <div style={{ fontSize: 13, color: '#eee' }}>
-                                安装完成后，<b>启动客户端</b> 并点击标注工具上的“Add”按钮即可自动发送。
-                            </div>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: 17, color: '#fff', fontWeight: 600, lineHeight: 1.2 }}>
+                                Plugin Required
+                            </h3>
+                            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>
+                                Annotate for Antigravity
+                            </p>
                         </div>
                     </div>
 
-                    <button onClick={onClose} style={{
-                        marginTop: 12, padding: '10px', borderRadius: 10, background: '#fff', color: '#000',
-                        border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer'
+                    {/* Description */}
+                    <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>
+                        The <b style={{ color: 'rgba(255,255,255,0.9)' }}>Annotate for Antigravity</b> companion
+                        plugin was not detected. Please follow the steps below.
+                    </div>
+
+                    {/* Steps */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {steps.map(({ Icon, text }, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                                <div style={{
+                                    width: 30, height: 30, borderRadius: 8,
+                                    background: 'rgba(255,255,255,0.08)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0, marginTop: 1,
+                                }}>
+                                    <Icon size={15} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                        Step {i + 1}
+                                    </span>
+                                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+                                        {text}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Tip */}
+                    <div style={{
+                        fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5,
+                        padding: '10px 12px', borderRadius: 8,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
                     }}>
-                        我已安装
+                        <b style={{ color: 'rgba(255,255,255,0.55)' }}>Tip:</b> Your cursor must be focused
+                        in the Antigravity chat input before clicking &quot;Add to Antigravity&quot;.
+                        <br /><br />
+                        <b style={{ color: 'rgba(255,255,255,0.55)' }}>Alternative:</b> Use the{' '}
+                        <Copy size={11} style={{ display: 'inline', verticalAlign: 'middle', marginBottom: 1 }} color="rgba(255,255,255,0.5)" />{' '}
+                        <b style={{ color: 'rgba(255,255,255,0.45)' }}>Copy</b> button to copy the screenshot
+                        to your clipboard, then paste it manually into Antigravity.
+                    </div>
+
+                    {/* CTA */}
+                    <button onClick={onClose} style={{
+                        padding: '11px', borderRadius: 10, background: '#fff', color: '#000',
+                        border: 'none', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                        letterSpacing: '0.2px',
+                    }}>
+                        Got it
                     </button>
                 </div>
             </div>
         </div>
     );
 }
+
+
 
 // ── Icon-only 工具按钮（内联 Tooltip，不使用 Portal，避免跨 Shadow DOM 崩溃）──
 function IconBtn({ Icon, active, onClick, danger = false, label, shortcut }: {

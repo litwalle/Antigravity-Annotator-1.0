@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { exec } from 'child_process';
 
 let server: http.Server | undefined;
@@ -46,40 +49,38 @@ function startServer() {
                     const payload = JSON.parse(body);
                     const includePrompt = payload.includePrompt !== false; // defaults to true if missing
 
-                    // We use AppleScript to forcefully bring Antigravity to the front,
-                    // paste the image, then conditionally replace the clipboard with text
-                    // and paste again, depending on includePrompt flag
-                    let script = `
+                    // 剪贴板内容（图片 ± 文字）已由浏览器端写入
+                    // AppleScript 只负责激活 Antigravity 并执行一次粘贴
+                    const script = `
 tell application "Antigravity" to activate
-delay 0.3
+delay 0.5
 tell application "System Events"
     keystroke "v" using command down
 end tell
 `;
 
-                    if (includePrompt) {
-                        const textPrompt = `Please modify based on the information in the screenshot.`;
-                        script += `
-set the clipboard to "${textPrompt}"
-delay 0.1
-tell application "System Events"
-    keystroke "v" using command down
-end tell
-`;
-                    }
-
-                    const escapedScript = script.trim().split('\\n').map(line => `-e '${line}'`).join(' ');
-
-                    exec(`osascript ${escapedScript}`, (error, stdout, stderr) => {
-                        if (error) {
-                            console.error('AppleScript error:', error);
+                    // 写入临时文件再执行，避免命令行转义问题
+                    const tmpFile = path.join(os.tmpdir(), `ag_annotate_${Date.now()}.scpt`);
+                    fs.writeFile(tmpFile, script, (writeErr) => {
+                        if (writeErr) {
                             res.writeHead(500, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ status: 'error', message: error.message }));
+                            res.end(JSON.stringify({ status: 'error', message: writeErr.message }));
                             return;
                         }
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'success' }));
+                        exec(`osascript "${tmpFile}"`, (error) => {
+                            fs.unlink(tmpFile, () => { }); // 执行完删除临时文件
+                            if (error) {
+                                console.error('AppleScript error:', error);
+                                res.writeHead(500, { 'Content-Type': 'application/json' });
+                                res.end(JSON.stringify({ status: 'error', message: error.message }));
+                                return;
+                            }
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ status: 'success' }));
+                        });
                     });
+
+
 
                 } catch (e: any) {
                     res.writeHead(500, { 'Content-Type': 'application/json' });
