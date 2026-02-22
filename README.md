@@ -12,30 +12,37 @@
 
 Antigravity Annotator is a browser extension that lets you capture a full screenshot of the current webpage, annotate it with drawing tools, highlights, comments, and text, then inject the result directly into **Antigravity** for AI-assisted development. Built for developers who need a fast feedback loop between the browser and Antigravity.
 
+![Preview](./preview.png)
+
 ---
 
 ## 📦 Download & Installation
 
 ### Step 1 — Install the Chrome Extension
 
-You can install the Chrome extension in two ways:
+You can install the Chrome extension in **two ways**:
 
-#### Option A: Direct Download (Recommended for most users)
+#### Option A: Direct Download (Recommended)
 
 1. **Download** the latest pre-built package from this repository:
    👉 [`Annotator-Chrome-Extension-1.0.6.zip`](./Annotator-Chrome-Extension-1.0.6.zip)
 
-2. **Unzip** the downloaded file to a folder on your computer.
+2. **Unzip** the downloaded file to a local folder on your computer.
 
-3. Open Chrome and go to `chrome://extensions/`
+3. Open Chrome and navigate to `chrome://extensions/`
 
 4. Enable **Developer Mode** by toggling the switch in the top-right corner.
 
 5. Click **"Load unpacked"** and select the unzipped folder.
 
-6. The **Annotator** icon will appear in your Chrome toolbar. Pin it for easy access.
+6. The **Annotator** icon will appear in your Chrome toolbar — pin it for quick access.
 
-#### Option B: From Source
+#### Option B: Chrome Web Store *(Coming Soon)*
+
+> 🕐 The extension is currently **under review** on the Chrome Web Store.
+> Once approved, you will be able to search for **"Annotator for Antigravity"** directly in the Chrome Web Store and install it with one click — no Developer Mode required.
+
+#### Option C: From Source
 
 ```bash
 git clone https://github.com/litwalle/Antigravity-Annotator-1.0.git
@@ -52,10 +59,13 @@ Then load the `annotator-extension/` folder via **Load unpacked** as described a
 
 To enable image injection from the browser into Antigravity, you also need to install the companion extension inside **Antigravity**.
 
-✅ **This extension is now available on the VS Code Marketplace:**
+✅ **This extension is now live on the VS Code Marketplace:**
 
-> Search for **"Annotator for Antigravity"** in Antigravity's Extensions panel, or install it directly from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=litwalle.antigravity).
+> Open the **Extensions** panel in Antigravity (`Cmd+Shift+X`), search for **`Annotator for Antigravity`**, and click **Install**.
+>
+> Or install directly from the [VS Code Marketplace →](https://marketplace.visualstudio.com/items?itemName=litwalle.antigravity)
 
+**Setup steps:**
 1. Open **Antigravity**.
 2. Go to the **Extensions** panel (`Cmd+Shift+X`).
 3. Search for **`Annotator for Antigravity`**.
@@ -112,20 +122,17 @@ To enable image injection from the browser into Antigravity, you also need to in
 
 ```
 ├── Annotator-Chrome-Extension-1.0.6.zip   # Pre-built Chrome extension (ready to install)
+├── preview.png                             # Preview screenshot
 ├── annotator-extension/    # Chrome extension source files
-│   ├── manifest.json       # Extension manifest (V3)
-│   ├── background.js       # Service worker for screenshot capture
-│   ├── content.js          # Compiled content script (React app)
-│   ├── content.css         # Content script styles
-│   └── icons/              # Extension icons
+│   ├── manifest.json
+│   ├── background.js
+│   ├── content.js
+│   ├── content.css
+│   └── icons/
 ├── annotator-react/        # React source code
-│   ├── src/
-│   │   ├── AnnotatorApp.tsx    # Main annotation UI component
-│   │   ├── content.tsx         # Content script entry point
-│   │   └── components/ui/      # Reusable UI components
-│   ├── vite.config.ts
-│   ├── package.json
-│   └── tsconfig.json
+│   └── src/
+│       ├── AnnotatorApp.tsx
+│       └── content.tsx
 └── antigravity-vscode-companion/   # Antigravity companion extension source
 ```
 
@@ -135,15 +142,9 @@ To enable image injection from the browser into Antigravity, you also need to in
 
 ```bash
 cd annotator-react
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
+npm run dev       # Development
+npm run build     # Production build
 ```
 
 After building, the compiled output is placed in `annotator-extension/` and can be loaded directly as an unpacked Chrome extension.
