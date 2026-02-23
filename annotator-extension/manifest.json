@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Annotator - for Chrome",
-  "version": "1.0.6",
-  "description": "Capture page screenshot, annotate with draws/comments, and send to IDE.",
+  "version": "1.2.0",
+  "description": "Capture page screenshot, annotate with draws/highlights/arrows/text, select & move elements, and send to IDE.",
   "permissions": [
     "activeTab",
     "scripting",

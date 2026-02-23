@@ -4,7 +4,7 @@ dist
 out
 *.vsix
 *.zip
-!Annotator-Chrome-Extension-1.0.6.zip
+!Annotator-Chrome-Extension-*.zip
 skeleton.py
 order_skeleton.py
 skeleton.png
